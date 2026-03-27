@@ -31,7 +31,7 @@ When given a feature request, follow these steps:
           │   │   └── ai_service.py
           │   └── core/            # Config (like appsettings.json)
           │       └── config.py    # read .env and other config settings from .json files
-          │       └── Database.py  # connect to the database and retrieve or query data
+          │       └── LogicalGroupName_DB.py  # connect to the database and perform CRUD operations for a specific logical group
           ├── .env                 # Secrets
           └── requirements.txt     # Dependencies (like NuGet)
           └── README.md            # Project documentation, architecture decisions, etc.

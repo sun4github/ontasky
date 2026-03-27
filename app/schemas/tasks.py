@@ -16,6 +16,7 @@ class TaskCreateRequest(BaseModel):
     due_on: Optional[date] = None
     repeat_every: Optional[int] = Field(default=None, ge=1, le=10)
     repeat_unit: Optional[RepeatUnit] = None
+    created_by_user_id: Optional[UUID] = None
 
     @model_validator(mode="after")
     def validate_repeat_pair(self) -> TaskCreateRequest:
@@ -63,6 +64,7 @@ class TaskResponse(BaseModel):
     updated_at: datetime
     completed_at: Optional[datetime]
     started_at: Optional[datetime]
+    created_by_user_id: Optional[UUID]
 
 
 class TaskListResponse(BaseModel):

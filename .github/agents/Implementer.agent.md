@@ -2,7 +2,7 @@
 name: Implementer
 description: An AI agent that helps develop new features by writing python code, and documentation. 
 tools: ['agent', 'read','edit', 'search', 'todo', 'execute', 'web', 'vscode']
-model: Claude Sonnet 4.6 (copilot)
+model: qwen3-coder:480b (ollama)
 agents: ['DBDeveloper', 'Validator']
 user-invocable: false
 ---
