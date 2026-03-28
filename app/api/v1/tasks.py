@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, Query
 
 from app.schemas.common import DueBucket, MessageResponse, TaskStatus, get_user_id
 from app.schemas.tasks import (
@@ -9,6 +9,7 @@ from app.schemas.tasks import (
     TaskResponse,
     TaskUpdateRequest,
 )
+from app.services import tasks_service
 
 router = APIRouter(prefix="/api/v1", tags=["tasks"])
 
@@ -19,9 +20,17 @@ router = APIRouter(prefix="/api/v1", tags=["tasks"])
 
 
 @router.post("/tasks", response_model=TaskResponse, status_code=201)
-async def create_task(req: TaskCreateRequest, user_id: UUID = Depends(get_user_id)):
+async def create_task(
+    req: TaskCreateRequest,
+    user_id: UUID = Depends(get_user_id),
+    x_assigner_key: str | None = Header(default=None),
+):
     """Create a new task. Status defaults to pending."""
-    raise HTTPException(status_code=501, detail="Not implemented")
+    return await tasks_service.create_task(
+        req=req,
+        requester_user_id=user_id,
+        assigner_key=x_assigner_key,
+    )
 
 
 @router.get("/tasks", response_model=TaskListResponse)
@@ -32,13 +41,18 @@ async def list_tasks(
     status: TaskStatus | None = Query(default=None, description="Filter by status"),
 ):
     """List tasks with optional filters. Used by Today/Tomorrow/This Week/Someday views and project views."""
-    raise HTTPException(status_code=501, detail="Not implemented")
+    return await tasks_service.list_tasks(
+        user_id=user_id,
+        due=due,
+        project_id=project_id,
+        status=status,
+    )
 
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: UUID, user_id: UUID = Depends(get_user_id)):
     """Get task detail with all attributes. Used by detailed attributes screen."""
-    raise HTTPException(status_code=501, detail="Not implemented")
+    return await tasks_service.get_task(task_id=task_id, user_id=user_id)
 
 
 @router.patch("/tasks/{task_id}", response_model=TaskResponse)
@@ -48,7 +62,7 @@ async def update_task(
     user_id: UUID = Depends(get_user_id),
 ):
     """Update task attributes (title, note, due_on, project, repeat, etc.)."""
-    raise HTTPException(status_code=501, detail="Not implemented")
+    return await tasks_service.update_task(task_id=task_id, req=req, user_id=user_id)
 
 
 # ---------------------------------------------------------------------------
@@ -59,13 +73,13 @@ async def update_task(
 @router.post("/tasks/{task_id}/complete", response_model=TaskResponse)
 async def complete_task(task_id: UUID, user_id: UUID = Depends(get_user_id)):
     """Mark task as completed. Sets status=completed and completed_at."""
-    raise HTTPException(status_code=501, detail="Not implemented")
+    return await tasks_service.complete_task(task_id=task_id, user_id=user_id)
 
 
 @router.post("/tasks/{task_id}/reopen", response_model=TaskResponse)
 async def reopen_task(task_id: UUID, user_id: UUID = Depends(get_user_id)):
     """Reopen a completed task. Sets status back to pending."""
-    raise HTTPException(status_code=501, detail="Not implemented")
+    return await tasks_service.reopen_task(task_id=task_id, user_id=user_id)
 
 
 # ---------------------------------------------------------------------------
@@ -76,4 +90,5 @@ async def reopen_task(task_id: UUID, user_id: UUID = Depends(get_user_id)):
 @router.delete("/tasks/{task_id}", response_model=MessageResponse)
 async def delete_task(task_id: UUID, user_id: UUID = Depends(get_user_id)):
     """Delete a task and all its subtasks."""
-    raise HTTPException(status_code=501, detail="Not implemented")
+    await tasks_service.delete_task(task_id=task_id, user_id=user_id)
+    return MessageResponse(detail="Task deleted")

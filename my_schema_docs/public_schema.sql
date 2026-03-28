@@ -347,6 +347,53 @@ ALTER TABLE ONLY public.task
 ALTER TABLE ONLY public.user_settings
     ADD CONSTRAINT user_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
 
+-- Assigner credentials: store hashed keys for authentication
+CREATE TABLE assigner_credential (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    assigner_user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+    key_hash TEXT NOT NULL,
+    label TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    expires_at TIMESTAMP WITH TIME ZONE,
+    revoked_at TIMESTAMP WITH TIME ZONE,
+    last_used_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT assigner_credential_label_check CHECK (char_length(label) > 0 AND char_length(label) <= 100),
+    CONSTRAINT assigner_credential_key_hash_check CHECK (char_length(key_hash) > 0)
+);
+
+CREATE INDEX idx_assigner_credential_user_id 
+    ON assigner_credential(assigner_user_id);
+
+CREATE INDEX idx_assigner_credential_user_active 
+    ON assigner_credential(assigner_user_id) 
+    WHERE revoked_at IS NULL;
+
+
+-- Assignment grants: authorize assigners to create tasks for users
+CREATE TABLE task_assigner_grant (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+    assigner_user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+    permissions JSONB NOT NULL DEFAULT '{"create_task": true}'::jsonb,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    granted_by_user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    revoked_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT task_assigner_grant_permissions_check 
+        CHECK (jsonb_typeof(permissions) = 'object'),
+    CONSTRAINT task_assigner_grant_unique 
+        UNIQUE (user_id, assigner_user_id)
+);
+
+CREATE INDEX idx_task_assigner_grant_user_id 
+    ON task_assigner_grant(user_id);
+
+CREATE INDEX idx_task_assigner_grant_assigner_id 
+    ON task_assigner_grant(assigner_user_id);
+
+CREATE INDEX idx_task_assigner_grant_active 
+    ON task_assigner_grant(user_id, assigner_user_id) 
+    WHERE revoked_at IS NULL;
 
 --
 -- PostgreSQL database dump complete

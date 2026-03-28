@@ -2,7 +2,7 @@
 name: Feature Developer
 description: An AI agent that helps develop new features by writing python code, tests, and documentation using subagents
 tools: ['agent', 'read', 'search', 'todo','vscode/askQuestions']
-model: gpt-oss:120b (ollama)
+model: GPT-5.3-Codex (copilot)
 agents: ['Planner', 'Implementer']
 user-invocable: true
 handoffs: 
