@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
+import hashlib, hmac
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -123,16 +123,18 @@ async def delete_task(task_id: UUID, user_id: UUID) -> None:
         raise HTTPException(status_code=404, detail="Task not found")
 
 
+
+
 async def _require_valid_assigner_key(assigner_user_id: UUID, raw_key: str) -> None:
     credentials = await assigners_db.list_active_assigner_credentials(assigner_user_id)
     candidate_hash = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
     for credential in credentials.get("items", []):
-        if credential.get("key_hash") == candidate_hash:
+        # Use constant-time comparison to prevent timing attacks
+        if hmac.compare_digest(credential.get("key_hash", ""), candidate_hash):
             return
 
     raise HTTPException(status_code=403, detail="Invalid assigner key")
-
 
 async def _require_create_task_grant(user_id: UUID, assigner_user_id: UUID) -> None:
     grant = await assigners_db.get_task_assigner_grant(user_id, assigner_user_id)
