@@ -10,7 +10,7 @@ from app.schemas.common import RepeatUnit, TaskStatus
 
 
 class TaskCreateRequest(BaseModel):
-    user_id: UUID
+    user_id: Optional[UUID] = None
     title: str = Field(min_length=1, pattern=r"^[^\r\n]+$")
     project_id: Optional[UUID] = None
     note: Optional[str] = None

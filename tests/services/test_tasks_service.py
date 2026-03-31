@@ -9,7 +9,7 @@ from app.schemas.tasks import TaskCreateRequest
 from app.services import tasks_service
 
 
-def _make_create_request(user_id, created_by_user_id=None):
+def _make_create_request(user_id=None, created_by_user_id=None):
     return TaskCreateRequest(
         user_id=user_id,
         title="Write tests",
@@ -28,7 +28,7 @@ def test_create_task_self_defaults_created_by(monkeypatch):
     monkeypatch.setattr(tasks_service.tasks_db, "create_task", fake_create_task)
 
     async def run_case():
-        req = _make_create_request(user_id=requester)
+        req = _make_create_request()
         await tasks_service.create_task(req, requester_user_id=requester, assigner_key=None)
 
     asyncio.run(run_case())

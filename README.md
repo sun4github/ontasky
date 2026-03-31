@@ -51,7 +51,7 @@ There is no separate frontend build step. All JavaScript is plain ES modules ser
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `users` | `id` (UUID PK), `email`, `display_name` | Auto-created from `X-User-Id` header on first request. |
+| `users` | `id` (UUID PK), `email`, `display_name` | Identified from the `Authorization: Bearer <token>` JWT `sub` claim; user row is auto-created on first request. |
 | `projects` | `id`, `user_id` FK, `name` | `name` supports `a/b/c` hierarchy by convention. |
 | `tasks` | `id`, `user_id`, `project_id`, `title`, `due_bucket`, `due_date_epoch`, `repeat_every_number`, `repeat_every_unit`, `status`, `pomodoro_counter`, `note`, `attributes` JSONB | `attributes` is a free-form JSONB bag for extra metadata; `due_date_epoch` is UTC midnight epoch seconds. |
 | `subtasks` | `id`, `task_id` FK, `title`, `completed` | Ordered checklist under a task. |
@@ -89,15 +89,20 @@ pip install -r requirements.txt
 Copy the example below to a `.env` file in the project root and fill in your values:
 
 ```dotenv
-DB_SERVER=localhost
-DB_NAME=ontasky
-DB_SCHEMA=public
-DB_USER=postgres
-DB_PWD=yourpassword
+DB_HOST=localhost
 DB_PORT=5432
+DB_NAME=ontasky
+DB_USER=postgres
+DB_PASSWORD=yourpassword
+
+JWT_SECRET_KEY=change-me
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
+# JWT_AUDIENCE=your-audience
+# JWT_ISSUER=your-issuer
 ```
 
-All `DB_*` variables are read by `app/config.py` via `pydantic-settings`. The `.env` file is loaded automatically on startup.
+All `DB_*` and `JWT_*` variables are read by `app/core/config.py` via `pydantic-settings`. The `.env` file is loaded automatically on startup.
 
 ### 4. Initialise the database
 
@@ -123,7 +128,7 @@ The app is available at `http://localhost:8000`.
 
 ### Browser UI
 
-Open `http://localhost:8000` in a browser. The UI uses `X-User-Id` (a UUID you supply or that is generated on first load) to identify you. All requests are scoped to that user.
+Open `http://localhost:8000` in a browser. Authenticate requests with `Authorization: Bearer <token>`. The JWT `sub` claim identifies your user, and all requests are scoped to that user.
 
 ### Pomodoro timer
 
@@ -137,7 +142,7 @@ Open `http://localhost:8000` in a browser. The UI uses `X-User-Id` (a UUID you s
 
 ## API endpoint summary
 
-All endpoints are prefixed with `/api`. The `X-User-Id` header (UUID) is required on all user-scoped endpoints.
+All endpoints are prefixed with `/api`. The `Authorization: Bearer <token>` header is required on all user-scoped endpoints.
 
 ### Health
 

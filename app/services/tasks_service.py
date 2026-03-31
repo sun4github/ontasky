@@ -16,15 +16,19 @@ from app.schemas.tasks import TaskCreateRequest, TaskUpdateRequest
 async def create_task(
     req: TaskCreateRequest,
     requester_user_id: UUID,
-    assigner_key: str | None,
+    assigner_key: str | None = None,
 ) -> dict:
     """Create a task after ownership and delegation checks.
 
-    Behavior for `created_by_user_id` is deterministic:
-    - if creating for another user, force `created_by_user_id` to requester
-    - if creating for self, keep request value when provided, else requester
+    When ``req.user_id`` is omitted or matches the requester the task is a
+    self-create and no delegation check is needed.
+
+    When ``req.user_id`` differs from the requester, the caller must supply a
+    valid ``X-Assigner-Key`` header and have an active grant from the target
+    user.  In that case ``created_by_user_id`` is forced to the requester.
     """
-    is_self_create = req.user_id == requester_user_id
+    target_user_id = req.user_id if req.user_id is not None else requester_user_id
+    is_self_create = target_user_id == requester_user_id
 
     if not is_self_create:
         if assigner_key is None:
@@ -38,7 +42,7 @@ async def create_task(
             raw_key=assigner_key,
         )
         await _require_create_task_grant(
-            user_id=req.user_id,
+            user_id=target_user_id,
             assigner_user_id=requester_user_id,
         )
 
@@ -49,7 +53,7 @@ async def create_task(
     )
 
     return await tasks_db.create_task(
-        user_id=req.user_id,
+        user_id=target_user_id,
         title=req.title,
         project_id=req.project_id,
         note=req.note,
@@ -123,8 +127,6 @@ async def delete_task(task_id: UUID, user_id: UUID) -> None:
         raise HTTPException(status_code=404, detail="Task not found")
 
 
-
-
 async def _require_valid_assigner_key(assigner_user_id: UUID, raw_key: str) -> None:
     credentials = await assigners_db.list_active_assigner_credentials(assigner_user_id)
     candidate_hash = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
@@ -135,6 +137,7 @@ async def _require_valid_assigner_key(assigner_user_id: UUID, raw_key: str) -> N
             return
 
     raise HTTPException(status_code=403, detail="Invalid assigner key")
+
 
 async def _require_create_task_grant(user_id: UUID, assigner_user_id: UUID) -> None:
     grant = await assigners_db.get_task_assigner_grant(user_id, assigner_user_id)

@@ -2,8 +2,11 @@ from enum import Enum
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Header, HTTPException
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+
+from app.core.auth import AuthTokenError, decode_access_token
 
 
 class TaskStatus(str, Enum):
@@ -32,9 +35,65 @@ class MessageResponse(BaseModel):
     detail: str
 
 
-async def get_user_id(x_user_id: Annotated[str, Header()]) -> UUID:
-    """Extract and validate user_id from X-User-Id header."""
+class AuthenticatedUser(BaseModel):
+    user_id: UUID
+    username: str | None = None
+
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+async def get_user_id(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> UUID:
+    """Extract and validate user_id from an Authorization Bearer token."""
+    return (await get_current_user(credentials)).user_id
+
+
+async def get_current_user(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> AuthenticatedUser:
+    """Extract user identity and optional username from a Bearer token."""
+    auth_headers = {"WWW-Authenticate": "Bearer"}
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Authorization Bearer token",
+            headers=auth_headers,
+        )
+
     try:
-        return UUID(x_user_id)
+        claims = decode_access_token(credentials.credentials)
+    except AuthTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token",
+            headers=auth_headers,
+        )
+
+    sub = claims.get("sub")
+    if not isinstance(sub, str):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token missing subject claim",
+            headers=auth_headers,
+        )
+
+    try:
+        user_id = UUID(sub)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid X-User-Id header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid subject claim in access token",
+            headers=auth_headers,
+        )
+
+    username = claims.get("username")
+    if username is not None and not isinstance(username, str):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username claim in access token",
+            headers=auth_headers,
+        )
+
+    return AuthenticatedUser(user_id=user_id, username=username)

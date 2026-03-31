@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
 
+    # JWT
+    JWT_SECRET_KEY: str = "dev-only-change-me"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    JWT_AUDIENCE: str | None = None
+    JWT_ISSUER: str | None = None
+    JWT_ALLOW_NON_EXPIRING_AGENT_TOKENS: bool = False
+
     @cached_property
     def db_conninfo(self) -> str:
         return (
