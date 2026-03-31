@@ -121,6 +121,7 @@ CREATE TABLE public.project (
 
 CREATE TABLE public.subtask (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
     task_id uuid NOT NULL,
     title text NOT NULL,
     is_completed boolean DEFAULT false NOT NULL,
@@ -250,10 +251,10 @@ CREATE INDEX idx_project_user_path ON public.project USING btree (user_id, path)
 
 
 --
--- Name: idx_subtask_task_order; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_subtask_user_task_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_subtask_task_order ON public.subtask USING btree (task_id, sort_order);
+CREATE INDEX idx_subtask_user_task_order ON public.subtask USING btree (user_id, task_id, sort_order);
 
 
 --
@@ -314,6 +315,14 @@ ALTER TABLE ONLY public.project
 
 ALTER TABLE ONLY public.subtask
     ADD CONSTRAINT subtask_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.task(id) ON DELETE CASCADE;
+
+
+--
+-- Name: subtask subtask_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.subtask
+    ADD CONSTRAINT subtask_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
 
 
 --
