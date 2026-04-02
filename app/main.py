@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -18,6 +19,8 @@ async def lifespan(app: FastAPI):
     """
     # ---- startup ---------------------------------------------------------
     await open_pool()          # create the shared async connection pool
+    # Pre-generate schema at startup so Swagger UI has docs immediately.
+    app.openapi_schema = app.openapi()
     yield                     # <-- control passes to the running FastAPI app
     # ---- shutdown --------------------------------------------------------
     await close_pool()        # gracefully close the pool
@@ -27,7 +30,10 @@ app = FastAPI(
     title=settings.APP_TITLE,
     version=settings.APP_VERSION,
     description="Task management API with Pomodoro support.",
-     lifespan=lifespan
+    lifespan=lifespan,
+    docs_url="/swagger",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 app.add_middleware(
@@ -44,6 +50,12 @@ app.include_router(projects.router)
 app.include_router(pomodoro.router)
 app.include_router(user_settings.router)
 app.include_router(assigners.router)
+
+
+@app.get("/", include_in_schema=False)
+async def docs_redirect() -> RedirectResponse:
+    """Redirect root URL to Swagger UI."""
+    return RedirectResponse(url="/swagger")
 
 
 @app.get("/health", tags=["system"])
