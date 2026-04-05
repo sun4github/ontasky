@@ -123,7 +123,7 @@ async def delete_project(project_id: UUID, user_id: UUID) -> bool:
                 """,
                 (project_id, user_id),
             )
-            status = await cur.statusmessage()
+            status = cur.statusmessage
             # Parse the status message to check if a row was deleted
             # Status message format is "DELETE X" where X is the number of rows
             rows_deleted = int(status.split()[1]) if status and " " in status else 0

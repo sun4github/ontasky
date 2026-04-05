@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from app.core.auth import AuthTokenError, decode_access_token
+from app.core.users_db import upsert_app_user  # add this
 
 
 class TaskStatus(str, Enum):
@@ -95,5 +96,9 @@ async def get_current_user(
             detail="Invalid username claim in access token",
             headers=auth_headers,
         )
+
+    # Ensure the user exists in the database
+    if claims.get("token_kind", "human") == "human":
+        await upsert_app_user(user_id=user_id, username=username)
 
     return AuthenticatedUser(user_id=user_id, username=username)
