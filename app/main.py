@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
+from fastmcp import FastMCP
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastmcp.server.providers import FileSystemProvider
 
 from app.core.config import settings
 from app.core.db import close_pool, open_pool
@@ -26,6 +29,11 @@ async def lifespan(app: FastAPI):
     await close_pool()        # gracefully close the pool
 
 
+# Point the provider to your tools directory
+mcp_provider = FileSystemProvider(Path(__file__).parent / "mcp_tools")
+
+mcp = FastMCP("OnTaskyMCP", providers=[mcp_provider])
+
 app = FastAPI(
     title=settings.APP_TITLE,
     version=settings.APP_VERSION,
@@ -35,6 +43,9 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
 )
+
+# Mount to FastAPI as before
+app.mount("/mcp", mcp.http_app())
 
 app.add_middleware(
     CORSMiddleware,

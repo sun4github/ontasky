@@ -51,20 +51,12 @@ async def get_user_id(
     return (await get_current_user(credentials)).user_id
 
 
-async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
-) -> AuthenticatedUser:
-    """Extract user identity and optional username from a Bearer token."""
+async def get_current_user_from_token(token: str) -> AuthenticatedUser:
+    """Extract user identity and optional username from a raw JWT token."""
     auth_headers = {"WWW-Authenticate": "Bearer"}
-    if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization Bearer token",
-            headers=auth_headers,
-        )
 
     try:
-        claims = decode_access_token(credentials.credentials)
+        claims = decode_access_token(token)
     except AuthTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -102,3 +94,18 @@ async def get_current_user(
         await upsert_app_user(user_id=user_id, username=username)
 
     return AuthenticatedUser(user_id=user_id, username=username)
+
+
+async def get_current_user(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> AuthenticatedUser:
+    """Extract user identity and optional username from a Bearer token."""
+    auth_headers = {"WWW-Authenticate": "Bearer"}
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Authorization Bearer token",
+            headers=auth_headers,
+        )
+
+    return await get_current_user_from_token(credentials.credentials)
