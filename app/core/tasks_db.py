@@ -30,6 +30,7 @@ _DUE_FILTERS: dict[str, str] = {
     "tomorrow": "AND due_on = CURRENT_DATE + 1",
     "this_week": "AND due_on BETWEEN CURRENT_DATE AND (CURRENT_DATE + interval '6 days')::date",
     "someday": "AND due_on IS NULL",
+    "overdue": "AND due_on <= CURRENT_DATE",
 }
 
 # ---------------------------------------------------------------------------
@@ -111,6 +112,31 @@ async def list_tasks(
              ORDER BY created_at DESC
             """,
             params,
+        )
+        rows = await cur.fetchall()
+        return {"items": rows, "total": len(rows)}
+
+
+async def search_tasks(user_id: UUID, q: str, limit: int = 20) -> dict:
+    """Search tasks by title for a user.
+
+    Returns ``{"items": [...], "total": <int>}``.
+    """
+    pool = get_pool()
+    pattern = f"%{q}%"
+
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        cur = await conn.execute(
+            f"""
+            SELECT {_TASK_COLS}
+              FROM task
+             WHERE user_id = %s
+               AND title ILIKE %s
+             ORDER BY created_at DESC
+             LIMIT %s
+            """,
+            (user_id, pattern, limit),
         )
         rows = await cur.fetchall()
         return {"items": rows, "total": len(rows)}

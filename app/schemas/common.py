@@ -30,6 +30,7 @@ class DueBucket(str, Enum):
     tomorrow = "tomorrow"
     this_week = "this_week"
     someday = "someday"
+    overdue = "overdue"
 
 
 class MessageResponse(BaseModel):

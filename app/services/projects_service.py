@@ -20,6 +20,15 @@ async def list_projects(user_id: UUID) -> dict:
     return await projects_db.list_projects(user_id=user_id)
 
 
+async def search_projects(user_id: UUID, q: str, limit: int = 20) -> dict:
+    """Search projects by leaf path segment for a user."""
+    query = q.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Search query cannot be empty")
+
+    return await projects_db.search_projects(user_id=user_id, q=query, limit=limit)
+
+
 async def get_project(project_id: UUID, user_id: UUID) -> dict:
     """Get a project by id for a user or raise 404."""
     row = await projects_db.get_project(project_id=project_id, user_id=user_id)

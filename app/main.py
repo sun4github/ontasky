@@ -12,6 +12,14 @@ from app.core.config import settings
 from app.core.db import close_pool, open_pool
 from app.api.v1 import assigners, pomodoro, projects, subtasks, tasks, user_settings
 
+# Point the provider to your tools directory
+mcp_provider = FileSystemProvider(Path(__file__).parent / "mcp_tools")
+
+mcp = FastMCP("OnTaskyMCP", providers=[mcp_provider])
+# Create the MCP ASGI app with path="/" since we'll mount at /mcp
+mcp_app = mcp.http_app(path="/", stateless_http=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -20,19 +28,17 @@ async def lifespan(app: FastAPI):
     * Code before `yield` runs once when the ASGI server starts.
     * Code after `yield` runs once when the server is shutting down.
     """
-    # ---- startup ---------------------------------------------------------
-    await open_pool()          # create the shared async connection pool
-    # Pre-generate schema at startup so Swagger UI has docs immediately.
-    app.openapi_schema = app.openapi()
-    yield                     # <-- control passes to the running FastAPI app
-    # ---- shutdown --------------------------------------------------------
-    await close_pool()        # gracefully close the pool
+    async with mcp_app.lifespan(app):  # Ensure MCP lifespan is managed
+        # ---- startup ---------------------------------------------------------
+        await open_pool()          # create the shared async connection pool
+        # Pre-generate schema at startup so Swagger UI has docs immediately.
+        app.openapi_schema = app.openapi()
+        yield                     # <-- control passes to the running FastAPI app
+        # ---- shutdown --------------------------------------------------------
+        await close_pool()        # gracefully close the pool
 
 
-# Point the provider to your tools directory
-mcp_provider = FileSystemProvider(Path(__file__).parent / "mcp_tools")
 
-mcp = FastMCP("OnTaskyMCP", providers=[mcp_provider])
 
 app = FastAPI(
     title=settings.APP_TITLE,
@@ -41,11 +47,11 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/swagger",
     redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    openapi_url="/openapi.json"
 )
 
 # Mount to FastAPI as before
-app.mount("/mcp", mcp.http_app())
+app.mount("/mcp", mcp_app)
 
 app.add_middleware(
     CORSMiddleware,

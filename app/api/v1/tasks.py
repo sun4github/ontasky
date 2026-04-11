@@ -49,6 +49,16 @@ async def list_tasks(
     )
 
 
+@router.get("/tasks/search", response_model=TaskListResponse)
+async def search_tasks(
+    q: str = Query(..., description="Search query for task title"),
+    limit: int = Query(default=20, ge=1, le=100, description="Maximum number of results"),
+    user_id: UUID = Depends(get_user_id),
+):
+    """Search tasks by title for the current user."""
+    return await tasks_service.search_tasks(user_id=user_id, q=q, limit=limit)
+
+
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: UUID, user_id: UUID = Depends(get_user_id)):
     """Get task detail with all attributes. Used by detailed attributes screen."""

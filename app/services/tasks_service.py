@@ -79,6 +79,15 @@ async def list_tasks(
     )
 
 
+async def search_tasks(user_id: UUID, q: str, limit: int = 20) -> dict:
+    """Search tasks by title for a user with deterministic ordering."""
+    query = q.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Search query cannot be empty")
+
+    return await tasks_db.search_tasks(user_id=user_id, q=query, limit=limit)
+
+
 async def get_task(task_id: UUID, user_id: UUID) -> dict:
     """Get a task by id for a user or raise 404."""
     row = await tasks_db.get_task(task_id=task_id, user_id=user_id)

@@ -63,6 +63,31 @@ async def list_projects(user_id: UUID) -> dict:
         return {"items": rows, "total": len(rows)}
 
 
+async def search_projects(user_id: UUID, q: str, limit: int = 20) -> dict:
+    """Search projects by leaf segment from path for a user.
+
+    Returns ``{"items": [...], "total": <int>}``.
+    """
+    pool = get_pool()
+    pattern = f"%{q}%"
+
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        cur = await conn.execute(
+            f"""
+            SELECT {_PROJECT_COLS}
+              FROM project
+             WHERE user_id = %s
+               AND split_part(path, '/', array_length(string_to_array(path, '/'), 1)) ILIKE %s
+             ORDER BY created_at DESC
+             LIMIT %s
+            """,
+            (user_id, pattern, limit),
+        )
+        rows = await cur.fetchall()
+        return {"items": rows, "total": len(rows)}
+
+
 async def get_project(project_id: UUID, user_id: UUID) -> dict | None:
     """Fetch a single project by id scoped to the user, or None."""
     pool = get_pool()

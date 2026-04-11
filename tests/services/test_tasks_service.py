@@ -185,3 +185,38 @@ def test_create_task_for_another_user_allows_valid_key_and_grant(monkeypatch):
 
     assert captured["user_id"] == owner
     assert captured["created_by_user_id"] == requester
+
+
+def test_search_tasks_trims_query_and_delegates(monkeypatch):
+    user_id = uuid4()
+    captured = {}
+    payload = {"items": [{"id": uuid4(), "title": "Write tests"}], "total": 1}
+
+    async def fake_search_tasks(**kwargs):
+        captured.update(kwargs)
+        return payload
+
+    monkeypatch.setattr(tasks_service.tasks_db, "search_tasks", fake_search_tasks)
+
+    async def run_case():
+        return await tasks_service.search_tasks(user_id=user_id, q="  tests  ", limit=10)
+
+    result = asyncio.run(run_case())
+
+    assert captured["user_id"] == user_id
+    assert captured["q"] == "tests"
+    assert captured["limit"] == 10
+    assert result == payload
+
+
+def test_search_tasks_rejects_empty_query():
+    user_id = uuid4()
+
+    async def run_case():
+        await tasks_service.search_tasks(user_id=user_id, q="   ")
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(run_case())
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Search query cannot be empty"

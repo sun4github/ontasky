@@ -279,10 +279,24 @@ CREATE INDEX idx_task_user_project_status ON public.task USING btree (user_id, p
 
 
 --
+-- Name: idx_task_user_title_search; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_task_user_title_search ON public.task USING btree (user_id, lower(title));
+
+
+--
 -- Name: idx_task_user_status_created; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_task_user_status_created ON public.task USING btree (user_id, status, created_at DESC);
+
+
+--
+-- Name: idx_project_user_leaf_title_search; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_project_user_leaf_title_search ON public.project USING btree (user_id, lower(split_part(path, '/', array_length(string_to_array(path, '/'), 1))));
 
 
 --
