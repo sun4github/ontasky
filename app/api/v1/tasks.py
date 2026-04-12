@@ -53,10 +53,18 @@ async def list_tasks(
 async def search_tasks(
     q: str = Query(..., description="Search query for task title"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum number of results"),
+    include_completed: bool = Query(default=False, description="Include completed tasks"),
+    include_deleted: bool = Query(default=False, description="Include deleted tasks"),
     user_id: UUID = Depends(get_user_id),
 ):
     """Search tasks by title for the current user."""
-    return await tasks_service.search_tasks(user_id=user_id, q=q, limit=limit)
+    return await tasks_service.search_tasks(
+        user_id=user_id,
+        q=q,
+        limit=limit,
+        include_completed=include_completed,
+        include_deleted=include_deleted,
+    )
 
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
@@ -92,13 +100,8 @@ async def reopen_task(task_id: UUID, user_id: UUID = Depends(get_user_id)):
     return await tasks_service.reopen_task(task_id=task_id, user_id=user_id)
 
 
-# ---------------------------------------------------------------------------
-# Task deletion
-# ---------------------------------------------------------------------------
+@router.post("/tasks/{task_id}/delete", response_model=TaskResponse)
+async def soft_delete_task(task_id: UUID, user_id: UUID = Depends(get_user_id)):
+    """Soft-delete a task (sets is_deleted=true) and hard-deletes all its subtasks."""
+    return await tasks_service.soft_delete_task(task_id=task_id, user_id=user_id)
 
-
-@router.delete("/tasks/{task_id}", response_model=MessageResponse)
-async def delete_task(task_id: UUID, user_id: UUID = Depends(get_user_id)):
-    """Delete a task and all its subtasks."""
-    await tasks_service.delete_task(task_id=task_id, user_id=user_id)
-    return MessageResponse(detail="Task deleted")

@@ -35,10 +35,18 @@ async def list_projects(user_id: UUID = Depends(get_user_id)):
 async def search_projects(
     q: str = Query(..., description="Search query for project name"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum number of results"),
+    include_completed: bool = Query(default=False, description="Include completed projects"),
+    include_deleted: bool = Query(default=False, description="Include deleted projects"),
     user_id: UUID = Depends(get_user_id),
 ):
     """Search projects by leaf path name for the current user."""
-    return await projects_service.search_projects(user_id=user_id, q=q, limit=limit)
+    return await projects_service.search_projects(
+        user_id=user_id,
+        q=q,
+        limit=limit,
+        include_completed=include_completed,
+        include_deleted=include_deleted,
+    )
 
 
 @router.get("/projects/{project_id}", response_model=ProjectResponse)
@@ -65,9 +73,13 @@ async def update_project(
 # Project deletion
 # ---------------------------------------------------------------------------
 
+@router.post("/projects/{project_id}/delete", response_model=ProjectResponse)
+async def soft_delete_project(project_id: UUID, user_id: UUID = Depends(get_user_id)):
+    """Soft-delete a project (sets is_deleted=true). Soft-deletes all its tasks and hard-deletes their subtasks."""
+    return await projects_service.soft_delete_project(project_id=project_id, user_id=user_id)
 
-@router.delete("/projects/{project_id}", response_model=MessageResponse)
-async def delete_project(project_id: UUID, user_id: UUID = Depends(get_user_id)):
-    """Delete a project. Tasks in this project will have their project_id set to null."""
-    await projects_service.delete_project(project_id=project_id, user_id=user_id)
-    return MessageResponse(detail="Project deleted")
+
+@router.post("/projects/{project_id}/complete", response_model=ProjectResponse)
+async def complete_project(project_id: UUID, user_id: UUID = Depends(get_user_id)):
+    """Mark a project as completed (sets is_completed=true)."""
+    return await projects_service.complete_project(project_id=project_id, user_id=user_id)

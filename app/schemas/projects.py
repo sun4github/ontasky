@@ -22,6 +22,8 @@ class ProjectResponse(BaseModel):
     user_id: UUID
     path: str
     created_at: datetime
+    is_deleted: bool
+    is_completed: bool
 
     @computed_field
     @property

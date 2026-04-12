@@ -44,7 +44,7 @@ async def list_tasks(
     project_id: UUID | None = None,
     status: TaskStatus | None = None,
 ) -> TaskListResponse:
-    """List tasks for the authenticated user.
+    """List active tasks for the authenticated user.
 
     Args:
         token: Raw JWT bearer token for authenticating the caller.
@@ -159,20 +159,21 @@ async def update_task(
     return TaskResponse.model_validate(result)
 
 
+
 @tool
-async def delete_task(token: str, task_id: UUID) -> MessageResponse:
-    """Delete a task and all its subtasks.
+async def soft_delete_task(token: str, task_id: UUID) -> TaskResponse:
+    """Soft-delete a task (marks is_deleted=true) and hard-deletes all its subtasks.
 
     Args:
         token: Raw JWT bearer token for authenticating the caller.
-        task_id: The task to delete.
+        task_id: The task to soft-delete.
 
     Returns:
-        Confirmation message.
+        The updated TaskResponse record with is_deleted=true.
     """
     auth_user = await get_current_user_from_token(token)
-    await tasks_service.delete_task(task_id=task_id, user_id=auth_user.user_id)
-    return MessageResponse(detail="Task deleted")
+    result = await tasks_service.soft_delete_task(task_id=task_id, user_id=auth_user.user_id)
+    return TaskResponse.model_validate(result)
 
 
 @tool
@@ -180,6 +181,8 @@ async def search_tasks(
     token: str,
     q: str,
     limit: int = 20,
+    include_completed: bool = False,
+    include_deleted: bool = False,
 ) -> TaskListResponse:
     """Search tasks by title for the authenticated user.
 
@@ -187,12 +190,20 @@ async def search_tasks(
         token: Raw JWT bearer token for authenticating the caller.
         q: Search query string matched against task titles.
         limit: Maximum number of results to return (default 20).
+        include_completed: Include completed tasks in results (default False).
+        include_deleted: Include deleted tasks in results (default False).
 
     Returns:
         TaskListResponse with matching task records and total count.
     """
     auth_user = await get_current_user_from_token(token)
-    result = await tasks_service.search_tasks(user_id=auth_user.user_id, q=q, limit=limit)
+    result = await tasks_service.search_tasks(
+        user_id=auth_user.user_id,
+        q=q,
+        limit=limit,
+        include_completed=include_completed,
+        include_deleted=include_deleted,
+    )
     return TaskListResponse.model_validate(result)
 
 
@@ -240,7 +251,7 @@ async def reopen_task(token: str, task_id: UUID) -> TaskResponse:
 
 @tool
 async def list_projects(token: str) -> ProjectListResponse:
-    """List all projects for the authenticated user.
+    """List active projects for the authenticated user.
 
     Args:
         token: Raw JWT bearer token for authenticating the caller.
@@ -274,6 +285,8 @@ async def search_projects(
     token: str,
     q: str,
     limit: int = 20,
+    include_completed: bool = False,
+    include_deleted: bool = False,
 ) -> ProjectListResponse:
     """Search projects by path for the authenticated user.
 
@@ -281,12 +294,20 @@ async def search_projects(
         token: Raw JWT bearer token for authenticating the caller.
         q: Search query string matched against the leaf path segment.
         limit: Maximum number of results to return (default 20).
+        include_completed: Include completed projects in results (default False).
+        include_deleted: Include deleted projects in results (default False).
 
     Returns:
         ProjectListResponse with matching project records and total count.
     """
     auth_user = await get_current_user_from_token(token)
-    result = await projects_service.search_projects(user_id=auth_user.user_id, q=q, limit=limit)
+    result = await projects_service.search_projects(
+        user_id=auth_user.user_id,
+        q=q,
+        limit=limit,
+        include_completed=include_completed,
+        include_deleted=include_deleted,
+    )
     return ProjectListResponse.model_validate(result)
 
 
@@ -327,20 +348,37 @@ async def update_project(token: str, project_id: UUID, path: str) -> ProjectResp
     return ProjectResponse.model_validate(result)
 
 
+
 @tool
-async def delete_project(token: str, project_id: UUID) -> MessageResponse:
-    """Delete a project. Tasks in this project will have their project_id set to null.
+async def soft_delete_project(token: str, project_id: UUID) -> ProjectResponse:
+    """Soft-delete a project (marks is_deleted=true), soft-deletes all its tasks, and hard-deletes their subtasks.
 
     Args:
         token: Raw JWT bearer token for authenticating the caller.
-        project_id: The project to delete.
+        project_id: The project to soft-delete.
 
     Returns:
-        Confirmation message.
+        The updated ProjectResponse record with is_deleted=true.
     """
     auth_user = await get_current_user_from_token(token)
-    await projects_service.delete_project(project_id=project_id, user_id=auth_user.user_id)
-    return MessageResponse(detail="Project deleted")
+    result = await projects_service.soft_delete_project(project_id=project_id, user_id=auth_user.user_id)
+    return ProjectResponse.model_validate(result)
+
+
+@tool
+async def complete_project(token: str, project_id: UUID) -> ProjectResponse:
+    """Mark a project as completed (sets is_completed=true).
+
+    Args:
+        token: Raw JWT bearer token for authenticating the caller.
+        project_id: The project to complete.
+
+    Returns:
+        The updated ProjectResponse record with is_completed=true.
+    """
+    auth_user = await get_current_user_from_token(token)
+    result = await projects_service.complete_project(project_id=project_id, user_id=auth_user.user_id)
+    return ProjectResponse.model_validate(result)
 
 
 # ---------------------------------------------------------------------------

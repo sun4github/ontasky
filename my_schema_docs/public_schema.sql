@@ -110,6 +110,8 @@ CREATE TABLE public.project (
     user_id uuid NOT NULL,
     path text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    is_deleted boolean DEFAULT false NOT NULL,
+    is_completed boolean DEFAULT false NOT NULL,
     CONSTRAINT project_path_check CHECK ((path <> ''::text)),
     CONSTRAINT project_path_check1 CHECK ((path !~ '(^/|/$|//)'::text))
 );
@@ -155,6 +157,7 @@ CREATE TABLE public.task (
     started_at timestamp with time zone,
     tokens_consumed integer,
     model_used text,
+    is_deleted boolean DEFAULT false NOT NULL,
     CONSTRAINT task_check CHECK ((((repeat_every IS NULL) AND (repeat_unit IS NULL)) OR ((repeat_every IS NOT NULL) AND (repeat_unit IS NOT NULL)))),
     CONSTRAINT task_pomodoro_count_check CHECK ((pomodoro_count >= 0)),
     CONSTRAINT task_repeat_every_check CHECK (((repeat_every >= 1) AND (repeat_every <= 10))),

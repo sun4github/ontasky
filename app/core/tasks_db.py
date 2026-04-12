@@ -16,7 +16,7 @@ from app.core.db import get_pool
 _TASK_COLS = (
     "id, user_id, project_id, title, note, status, pomodoro_count, "
     "due_on, repeat_every, repeat_unit, extra, created_at, updated_at, "
-    "completed_at, started_at, created_by_user_id"
+    "completed_at, started_at, created_by_user_id, is_deleted"
 )
 
 _UPDATABLE = {"title", "project_id", "note", "due_on", "repeat_every", "repeat_unit"}
@@ -88,7 +88,8 @@ async def list_tasks(
 
     clauses: list[str] = []
     params: list[object] = [user_id]
-
+    
+    clauses.append("AND is_deleted = false")
     if status is not None:
         clauses.append("AND status = %s")
         params.append(status)
@@ -117,13 +118,26 @@ async def list_tasks(
         return {"items": rows, "total": len(rows)}
 
 
-async def search_tasks(user_id: UUID, q: str, limit: int = 20) -> dict:
+async def search_tasks(
+    user_id: UUID,
+    q: str,
+    limit: int = 20,
+    include_completed: bool = False,
+    include_deleted: bool = False,
+) -> dict:
     """Search tasks by title for a user.
 
     Returns ``{"items": [...], "total": <int>}``.
     """
     pool = get_pool()
     pattern = f"%{q}%"
+
+    clauses: list[str] = []
+    if not include_deleted:
+        clauses.append("AND is_deleted = false")
+    if not include_completed:
+        clauses.append("AND status <> 'completed'")
+    where_extra = " ".join(clauses)
 
     async with pool.connection() as conn:
         conn.row_factory = dict_row
@@ -133,6 +147,7 @@ async def search_tasks(user_id: UUID, q: str, limit: int = 20) -> dict:
               FROM task
              WHERE user_id = %s
                AND title ILIKE %s
+               {where_extra}
              ORDER BY created_at DESC
              LIMIT %s
             """,
@@ -238,3 +253,29 @@ async def delete_task(task_id: UUID, user_id: UUID) -> bool:
                 (task_id, user_id),
             )
             return cur.rowcount > 0
+
+
+async def soft_delete_task(task_id: UUID, user_id: UUID) -> dict | None:
+    """Mark a task as deleted and hard-delete its subtasks.
+
+    Returns the updated task row, or None if not found.
+    """
+    pool = get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        async with conn.transaction():
+            # Hard-delete all subtasks first
+            await conn.execute(
+                "DELETE FROM subtask WHERE task_id = %s AND user_id = %s",
+                (task_id, user_id),
+            )
+            cur = await conn.execute(
+                f"""
+                UPDATE task
+                   SET is_deleted = true, updated_at = now()
+                 WHERE id = %s AND user_id = %s
+                RETURNING {_TASK_COLS}
+                """,
+                (task_id, user_id),
+            )
+            return await cur.fetchone()

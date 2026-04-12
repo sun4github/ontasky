@@ -79,13 +79,25 @@ async def list_tasks(
     )
 
 
-async def search_tasks(user_id: UUID, q: str, limit: int = 20) -> dict:
+async def search_tasks(
+    user_id: UUID,
+    q: str,
+    limit: int = 20,
+    include_completed: bool = False,
+    include_deleted: bool = False,
+) -> dict:
     """Search tasks by title for a user with deterministic ordering."""
     query = q.strip()
     if not query:
         raise HTTPException(status_code=400, detail="Search query cannot be empty")
 
-    return await tasks_db.search_tasks(user_id=user_id, q=query, limit=limit)
+    return await tasks_db.search_tasks(
+        user_id=user_id,
+        q=query,
+        limit=limit,
+        include_completed=include_completed,
+        include_deleted=include_deleted,
+    )
 
 
 async def get_task(task_id: UUID, user_id: UUID) -> dict:
@@ -134,6 +146,14 @@ async def delete_task(task_id: UUID, user_id: UUID) -> None:
     deleted = await tasks_db.delete_task(task_id=task_id, user_id=user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Task not found")
+
+
+async def soft_delete_task(task_id: UUID, user_id: UUID) -> dict:
+    """Mark a task as deleted (soft delete) and hard-delete its subtasks."""
+    row = await tasks_db.soft_delete_task(task_id=task_id, user_id=user_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return row
 
 
 async def _require_valid_assigner_key(assigner_user_id: UUID, raw_key: str) -> None:

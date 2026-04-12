@@ -66,6 +66,7 @@ class TaskResponse(BaseModel):
     completed_at: Optional[datetime]
     started_at: Optional[datetime]
     created_by_user_id: Optional[UUID]
+    is_deleted: bool
 
 
 class TaskListResponse(BaseModel):

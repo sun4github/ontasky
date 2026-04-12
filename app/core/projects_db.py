@@ -12,7 +12,7 @@ from app.core.db import get_pool
 # Constants
 # ---------------------------------------------------------------------------
 
-_PROJECT_COLS = "id, user_id, path, created_at"
+_PROJECT_COLS = "id, user_id, path, created_at, is_deleted, is_completed"
 
 _TASK_COLS = (
     "id, user_id, project_id, title, note, status, pomodoro_count, "
@@ -55,6 +55,8 @@ async def list_projects(user_id: UUID) -> dict:
             SELECT {_PROJECT_COLS}
               FROM project
              WHERE user_id = %s
+             AND is_deleted = false 
+             AND is_completed = false 
              ORDER BY created_at DESC
             """,
             (user_id,),
@@ -63,13 +65,26 @@ async def list_projects(user_id: UUID) -> dict:
         return {"items": rows, "total": len(rows)}
 
 
-async def search_projects(user_id: UUID, q: str, limit: int = 20) -> dict:
+async def search_projects(
+    user_id: UUID,
+    q: str,
+    limit: int = 20,
+    include_completed: bool = False,
+    include_deleted: bool = False,
+) -> dict:
     """Search projects by leaf segment from path for a user.
 
     Returns ``{"items": [...], "total": <int>}``.
     """
     pool = get_pool()
     pattern = f"%{q}%"
+
+    clauses: list[str] = []
+    if not include_deleted:
+        clauses.append("AND is_deleted = false")
+    if not include_completed:
+        clauses.append("AND is_completed = false")
+    where_extra = " ".join(clauses)
 
     async with pool.connection() as conn:
         conn.row_factory = dict_row
@@ -79,6 +94,7 @@ async def search_projects(user_id: UUID, q: str, limit: int = 20) -> dict:
               FROM project
              WHERE user_id = %s
                AND split_part(path, '/', array_length(string_to_array(path, '/'), 1)) ILIKE %s
+               {where_extra}
              ORDER BY created_at DESC
              LIMIT %s
             """,
@@ -153,6 +169,74 @@ async def delete_project(project_id: UUID, user_id: UUID) -> bool:
             # Status message format is "DELETE X" where X is the number of rows
             rows_deleted = int(status.split()[1]) if status and " " in status else 0
             return rows_deleted > 0
+
+
+async def soft_delete_project(project_id: UUID, user_id: UUID) -> dict | None:
+    """Soft-delete a project: marks it and all its tasks as deleted, hard-deletes subtasks.
+
+    Returns the updated project row, or None if not found.
+    """
+    pool = get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        async with conn.transaction():
+            # Hard-delete subtasks for all tasks in this project
+            await conn.execute(
+                """
+                DELETE FROM subtask
+                 WHERE task_id IN (
+                     SELECT id FROM task WHERE project_id = %s AND user_id = %s
+                 )
+                """,
+                (project_id, user_id),
+            )
+            # Soft-delete all tasks in this project
+            await conn.execute(
+                """
+                UPDATE task
+                   SET is_deleted = true, updated_at = now()
+                 WHERE project_id = %s AND user_id = %s
+                """,
+                (project_id, user_id),
+            )
+            # Soft-delete the project
+            cur = await conn.execute(
+                f"""
+                UPDATE project
+                   SET is_deleted = true
+                 WHERE id = %s AND user_id = %s
+                RETURNING {_PROJECT_COLS}
+                """,
+                (project_id, user_id),
+            )
+            return await cur.fetchone()
+
+
+async def complete_project(project_id: UUID, user_id: UUID) -> dict | None:
+    """Mark a project as completed and return the updated row, or None."""
+    pool = get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        async with conn.transaction():
+             # mark all tasks in this project as completed
+            await conn.execute(
+                """
+                UPDATE task
+                   SET status = 'completed', updated_at = now()
+                 WHERE project_id = %s AND user_id = %s
+                """,
+                (project_id, user_id),
+            )
+            cur = await conn.execute(
+                f"""
+                UPDATE project
+                   SET is_completed = true
+                 WHERE id = %s AND user_id = %s
+                RETURNING {_PROJECT_COLS}
+                """,
+                (project_id, user_id),
+            )
+            return await cur.fetchone()
 
 
 async def list_tasks_for_project(project_id: UUID, user_id: UUID) -> dict:
